@@ -2,7 +2,8 @@ from sys import argv, exit
 from socket import gethostbyname, getfqdn
 
 from PyQt5.QtWidgets import QApplication, QMainWindow, QMessageBox
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QRegExp
+from PyQt5.QtGui import QRegExpValidator
 
 from gui import Ui_MainWindow
 from server import Server
@@ -23,31 +24,52 @@ class ChatCat(QMainWindow, Ui_MainWindow):
 
         # Connect buttons
         self.buttons = [
-            (self.btnConnect,       self.connect,       'Connect to this IP'),
-            (self.btnDisconnect,    self.disconnect,    'Disconnect the session'),
-            (self.btnSend,          self.send,          'Send a message'),
+            (self.btnConnect,    self.connect,    'Connect to this IP'),
+            (self.btnDisconnect, self.disconnect, 'Disconnect the session'),
+            (self.btnSend,       self.send,       'Send a message'),
         ] 
         
         for btn, btn_func, btn_tip in self.buttons:
             btn.setToolTip(btn_tip)
             btn.clicked.connect(btn_func)
 
-        self.grpChat.setEnabled(False)
+        # Accept
+        rgx = QRegExp(r'\b((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(\.|$)){4}\b')
+        validator = QRegExpValidator(rgx, self)
+        self.txtIP.setValidator(validator)
+
+        self.disable_widget(self.grpChat, self.btnDisconnect)
         self.lblIP.setText(self.HOST)
+
+    def disable_widget(self, *widgets):
+        for widget in widgets:
+            widget.setEnabled(False)
+    
+    def enable_widget(self, *widgets):
+        for widget in widgets:
+            widget.setEnabled(True)
 
     def to_chat_history(self, dct):
         self.lstChat.addItem(f'{dct["name"]}: {dct["text"]}')
 
     def connect(self):
+        if len(self.txtIP.text().split('.')) != 4:
+            QMessageBox.critical(self, 'IP Validation Error!', 'Please Enter a Valid IP Address!')
+            return
+        
         self.client = Server(self.HOST, self.PORT)
         self.client.start()
-        self.grpChat.setEnabled(True)
         self.MsgThread_Starter()
 
+        self.disable_widget(self.btnConnect)
+        self.enable_widget(self.grpChat, self.btnDisconnect)
+
     def disconnect(self):
-        self.grpChat.setEnabled(False)
         self.client.stop()
         self.msg_thread.disconnected = True
+
+        self.disable_widget(self.grpChat, self.btnDisconnect)
+        self.enable_widget(self.btnConnect)
     
     def send(self):
         dct = {
