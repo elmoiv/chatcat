@@ -2,8 +2,8 @@ from sys import argv, exit
 from socket import gethostbyname, getfqdn
 
 from PyQt5.QtWidgets import QApplication, QMainWindow, QMessageBox, QListWidgetItem, QWidget, QLabel, QHBoxLayout, QLayout
-from PyQt5.QtCore import Qt, QRegExp, QSize
-from PyQt5.QtGui import QRegExpValidator, QColor
+from PyQt5.QtCore import Qt, QSize
+from PyQt5.QtGui import QColor
 
 from gui import Ui_MainWindow
 from server import Server
@@ -33,14 +33,7 @@ class ChatCat(QMainWindow, Ui_MainWindow):
             btn.setToolTip(btn_tip)
             btn.clicked.connect(btn_func)
 
-        # Accept correct IPs in textIP
-        rgx = QRegExp(r'\b((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(\.|$)){4}\b')
-        validator = QRegExpValidator(rgx, self)
-        self.txtIP.setValidator(validator)
-
         self.lblIP.setText(self.HOST)
-
-        self.txtSend.textChanged.connect(self.txtInputChanged)
         self.txtSend.setPlainText('')
 
         self.disable_widget(self.grpChat, self.btnDisconnect)
@@ -73,20 +66,6 @@ class ChatCat(QMainWindow, Ui_MainWindow):
         list_item.setSizeHint(QSize(100, 70 + 25 * text.count('<br>'))) 
         self.lstChat.setItemWidget(list_item, widget)
  
-    def txtInputChanged(self):
-        '''
-        Set Maximum Char limit for QPlainTextEdit
-        https://stackoverflow.com/a/46550977/5305953
-        '''
-        WrittenLen = len(self.txtSend.toPlainText())
-        self.lblCharLeft.setText(str(500 - WrittenLen))
-        if WrittenLen > 500:
-            text = self.txtSend.toPlainText()
-            text = text[:500]
-            self.txtSend.setPlainText(text)
-            cursor = self.txtSend.textCursor()
-            cursor.setPosition(500)
-            self.txtSend.setTextCursor(cursor)
     
     def disable_widget(self, *widgets):
         for widget in widgets:
@@ -121,9 +100,7 @@ class ChatCat(QMainWindow, Ui_MainWindow):
     
     def send(self):
         text = self.txtSend.toPlainText()
-        text = '\n'.join(i for i in text.split('\n') if i.strip())
-        if not text:
-            return
+
         dct = {
             'type': 'msg',
             'name': self.txtName.text() or 'Anonymous',
