@@ -1,9 +1,9 @@
 from sys import argv, exit
 from socket import gethostbyname, getfqdn
 
-from PyQt5.QtWidgets import QApplication, QMainWindow, QMessageBox
-from PyQt5.QtCore import Qt, QRegExp
-from PyQt5.QtGui import QRegExpValidator
+from PyQt5.QtWidgets import QApplication, QMainWindow, QMessageBox, QListWidgetItem, QWidget, QLabel, QHBoxLayout, QLayout
+from PyQt5.QtCore import Qt, QRegExp, QSize
+from PyQt5.QtGui import QRegExpValidator, QColor
 
 from gui import Ui_MainWindow
 from server import Server
@@ -12,7 +12,7 @@ from bridge import MsgThread
 class ChatCat(QMainWindow, Ui_MainWindow):
     def __init__(self):
         super().__init__()
-        self.version = '1.0.3'
+        self.version = '1.0.0'
         self.setupUi(self)
         
         self.HOST = gethostbyname(getfqdn())
@@ -33,14 +33,61 @@ class ChatCat(QMainWindow, Ui_MainWindow):
             btn.setToolTip(btn_tip)
             btn.clicked.connect(btn_func)
 
-        # Accept
+        # Accept correct IPs in textIP
         rgx = QRegExp(r'\b((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(\.|$)){4}\b')
         validator = QRegExpValidator(rgx, self)
         self.txtIP.setValidator(validator)
 
-        self.disable_widget(self.grpChat, self.btnDisconnect)
         self.lblIP.setText(self.HOST)
 
+        self.txtSend.textChanged.connect(self.txtInputChanged)
+        self.txtSend.setPlainText('')
+
+        self.disable_widget(self.grpChat, self.btnDisconnect)
+
+    def add_msg_to_chat(self, dct, is_sender=True):
+        '''
+        Add the ability to edit list items as html
+        Align sender to right and other to left
+        '''
+        list_item = QListWidgetItem() 
+        widget = QWidget()
+        align = ['right', 'left'][is_sender]
+        text = dct['text'].replace('\n', '<br>')
+        label =  QLabel(f'<p dir="rtl" style="text-align:{align};"><b>{dct["name"]}'
+                        #                                  "‎" is not empty text
+                        #                              Used to correct arabic-english mix
+                        f'</b><br><span style="color:#ff0000;">{text+"‎"}</span></p>'
+                )
+        
+        horizontal_box = QHBoxLayout()
+        horizontal_box.addWidget(label)
+        horizontal_box.setSizeConstraint(QLayout.SetMaximumSize)
+        
+        widget.setLayout(horizontal_box)      
+        
+        if not is_sender:
+            list_item.setBackground(QColor('#e5e4e0'))
+        
+        self.lstChat.addItem(list_item)
+        list_item.setSizeHint(QSize(100, 70 + 25 * text.count('<br>'))) 
+        self.lstChat.setItemWidget(list_item, widget)
+ 
+    def txtInputChanged(self):
+        '''
+        Set Maximum Char limit for QPlainTextEdit
+        https://stackoverflow.com/a/46550977/5305953
+        '''
+        WrittenLen = len(self.txtSend.toPlainText())
+        self.lblCharLeft.setText(str(500 - WrittenLen))
+        if WrittenLen > 500:
+            text = self.txtSend.toPlainText()
+            text = text[:500]
+            self.txtSend.setPlainText(text)
+            cursor = self.txtSend.textCursor()
+            cursor.setPosition(500)
+            self.txtSend.setTextCursor(cursor)
+    
     def disable_widget(self, *widgets):
         for widget in widgets:
             widget.setEnabled(False)
@@ -49,12 +96,13 @@ class ChatCat(QMainWindow, Ui_MainWindow):
         for widget in widgets:
             widget.setEnabled(True)
 
-    def to_chat_history(self, dct):
-        self.lstChat.addItem(f'{dct["name"]}: {dct["text"]}')
-
     def connect(self):
         if len(self.txtIP.text().split('.')) != 4:
-            QMessageBox.critical(self, 'IP Validation Error!', 'Please Enter a Valid IP Address!')
+            QMessageBox.critical(
+                self,
+                'IP Validation Error!',
+                'Please Enter a Valid IP Address!'
+            )
             return
         
         self.client = Server(self.HOST, self.PORT)
@@ -72,15 +120,20 @@ class ChatCat(QMainWindow, Ui_MainWindow):
         self.enable_widget(self.btnConnect)
     
     def send(self):
+        text = self.txtSend.toPlainText()
+        text = '\n'.join(i for i in text.split('\n') if i.strip())
+        if not text:
+            return
         dct = {
+            'type': 'msg',
             'name': self.txtName.text() or 'Anonymous',
-            'text': self.txtSend.text()
+            'text': text
             }
         self.client.send(str(dct), (self.txtIP.text(), self.PORT))
-        self.to_chat_history(dct)
+        self.add_msg_to_chat(dct)
 
         # Clear Msg Text Box after send and scroll to bottom
-        self.txtSend.setText('')
+        self.txtSend.setPlainText('')
         self.lstChat.scrollToBottom()
     
     def MsgThread_Starter(self):
@@ -88,7 +141,7 @@ class ChatCat(QMainWindow, Ui_MainWindow):
         self.msg_thread.start()
 
     def MsgThread_Reciever(self, last_msg):
-        self.to_chat_history(last_msg)
+        self.add_msg_to_chat(last_msg, False)
         self.lstChat.scrollToBottom()
 
 if __name__ == "__main__":
