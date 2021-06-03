@@ -219,6 +219,7 @@ class ChatCat(QMainWindow, Ui_MainWindow):
         self.msg_thread.latest_msg.connect(self.MsgThread_Reciever)
         self.msg_thread.typing_status.connect(self.Status_Reciever)
         self.msg_thread.online_status.connect(self.Online_Reciever)
+        self.msg_thread.server_broken.connect(self.Unexpected_Shutdown)
         self.msg_thread.client = self.client
         self.msg_thread.start()
 
