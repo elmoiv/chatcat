@@ -1,72 +1,72 @@
 from PyQt5.QtCore import QThread, pyqtSignal
-from server import threaded
-from utils import send_info
+from utils import send_info, threaded
 from time import sleep
 
 class MsgThread(QThread):
     latest_msg = pyqtSignal(dict)
     typing_status = pyqtSignal(list)
-    online_status = pyqtSignal(list)
+    online_status = pyqtSignal(tuple)
 
     def __init__(self):
         QThread.__init__(self)
         self.client = None
-        self.disconnected = False
-        self.still_typing = True
-        self.still_online = False
+        self.connected = True
+        self.is_typing = False
+        self.is_online = False
 
     def run(self):
-        self.client.live_recieve()
+        self.client.live_reciever()
         self.online_watcher()
 
-        while not self.disconnected:
+        while self.connected:
             sleep(0.001)
+
+            msg = self.client.get_recieved()
+            if msg == None:
+                continue
             
-            if self.client.hard_disk:
+            msg = eval(msg)
+
+            _type, text = msg['type'], msg['text'] 
+            
+            if _type == 'msg':
+                self.latest_msg.emit(msg)
+
+            if [_type, text] == ['info', 'typing']:
+                self.show_is_typing()
                 
-                msg = eval(self.client.hard_disk.pop(0))
-                if msg['type'] == 'msg':
-                    self.latest_msg.emit(msg)
-                
-                if msg['type'] == 'info':
-                    
-                    if msg['text'] == 'typing' and self.still_typing:
-                        #print('info type: is typing...')
-                        self.is_typing()
-                    
-                    if msg['text'] == 'online':
-                        #print('info type: is online...')
-                        self.still_online = True
-        
-        #print('Killed Message Reciever.')
+            if [_type, text] == ['info', 'online']:
+                self.is_online = True
     
     @threaded
-    def is_typing(self):
+    def show_is_typing(self):
         '''
         Implement "typing..." messenger feature
         '''
-        self.still_typing = False
+        if self.is_typing:
+            return
+
+        self.is_typing = True
         self.typing_status.emit(['Your friend is typing...', 'lime'])
         sleep(0.5)
-        self.typing_status.emit(['IDLE.', 'black'])
-        self.still_typing = True
+        self.typing_status.emit(['Idle', 'black'])
+        self.is_typing = False
 
     @threaded
     def online_watcher(self):
         '''
         Implement online status feature
         '''
-        while not self.disconnected:
-            #print(self.still_online)
-            if self.still_online:
-                self.online_status.emit(['Online', 'green'])
-            else:
-                self.online_status.emit(['Offline', 'red'])
+        while self.connected:
+            self.online_status.emit(
+                    [
+                        ('Offline', 'red'),
+                        ('Online', 'green')
+                    ][self.is_online], 
+                )
             
-            self.still_online = False
+            self.is_online = False
             sleep(1)
-        #print('Killed Online Watcher.')
-        
 
 class OnlineBroadcastThread(QThread):
     '''
@@ -74,13 +74,13 @@ class OnlineBroadcastThread(QThread):
     '''
     def __init__(self):
         QThread.__init__(self)
-        self.disconnected = False
+        self.connected = True
         self.client = None
         self.server = None
         self.name = None
 
     def run(self):
-        while not self.disconnected:
+        while self.connected:
             try:
                 send_info(
                     self.client,
@@ -90,6 +90,5 @@ class OnlineBroadcastThread(QThread):
                 )
             except OSError:
                 continue
+            
             sleep(0.5)
-
-        #print('Killed Online Broadcast.')

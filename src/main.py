@@ -1,15 +1,15 @@
 from time import sleep
-from socket import gethostbyname, getfqdn
 
 from PyQt5.QtWidgets import QMainWindow, QMessageBox, QListWidgetItem, QWidget, QLabel, QHBoxLayout, QLayout
 from PyQt5.QtCore import Qt, QRegExp, QSize, QEvent
 from PyQt5.QtGui import QRegExpValidator, QColor, QPixmap, QIcon
+from PyQt5.QtMultimedia import QSound
 
 from gui import Ui_MainWindow
 from server import Server
 from bridge import MsgThread, OnlineBroadcastThread
-from utils import send_msg, send_info, ip2id, id2ip
-from assets import app_icon
+from utils import *
+from assets import app_icon, msg_sfx
 
 class ChatCat(QMainWindow, Ui_MainWindow):
     def __init__(self):
@@ -21,8 +21,11 @@ class ChatCat(QMainWindow, Ui_MainWindow):
         self.setWindowIcon(self.icon)
         self.setupUi(self)
         
+        self.sounds = {}
+        self.load_sound('recieved', 'wav', msg_sfx)
+
         self.client = None
-        self.HOST = gethostbyname(getfqdn())
+        self.HOST = get_my_ip()
         self.SERVER = None
         self.PORT = 4000
         
@@ -67,6 +70,11 @@ class ChatCat(QMainWindow, Ui_MainWindow):
         icon.addPixmap(pix)
         return icon
 
+    def load_sound(self, name, _type, raw_data):
+        file_name = f'{name}.{_type}'
+        open(file_name, 'wb').write(raw_data)
+        self.sounds[name] = QSound(file_name)
+
     def eventFilter(self, obj, event):
         '''
         Implement Facebook Messenger sending mechanism
@@ -100,8 +108,9 @@ class ChatCat(QMainWindow, Ui_MainWindow):
         '''
         list_item = QListWidgetItem() 
         widget = QWidget()
+        
         align = ['right', 'left'][is_sender]
-        text = dct['text'].replace('\n', '<br>')
+        text = dct['text'].replace('\n', '<br>').replace(' ', '&nbsp;')
         label =  QLabel(f'<p dir="rtl" style="text-align:{align};"><b>{dct["name"]}'
                         #                                  "‎" is not empty text
                         #                              Used to correct arabic-english mix
@@ -135,9 +144,9 @@ class ChatCat(QMainWindow, Ui_MainWindow):
         Set Maximum Char limit for QPlainTextEdit
         https://stackoverflow.com/a/46550977/5305953
         '''
-        WrittenLen = len(self.txtSend.toPlainText())
-        self.lblCharLeft.setText(str(500 - WrittenLen))
-        if WrittenLen > 500:
+        text_len = len(self.txtSend.toPlainText())
+        self.lblCharLeft.setText(str(500 - text_len))
+        if text_len > 500:
             text = self.txtSend.toPlainText()
             text = text[:500]
             self.txtSend.setPlainText(text)
@@ -178,7 +187,7 @@ class ChatCat(QMainWindow, Ui_MainWindow):
         self.SERVER = None
 
         self.online_broadcast_thread.disconnected = True
-        self.msg_thread.disconnected = True
+        self.msg_thread.connected = False
         self.client.stop()
 
         self.disable_widget(self.grpChat, self.btnDisconnect)
@@ -213,6 +222,7 @@ class ChatCat(QMainWindow, Ui_MainWindow):
     def MsgThread_Reciever(self, last_msg):
         self.add_msg_to_chat(last_msg, False)
         self.lstChat.scrollToBottom()
+        self.sounds['recieved'].play()
 
     def OnlineBroadcastThread_Starter(self):
         self.online_broadcast_thread.__init__()

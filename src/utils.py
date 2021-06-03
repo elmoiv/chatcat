@@ -1,3 +1,4 @@
+from socket import gethostbyname, getfqdn
 from threading import Thread
 
 def threaded(fn):
@@ -9,6 +10,9 @@ def threaded(fn):
         t.start()
         return t
     return run
+
+def get_my_ip():
+    return gethostbyname(getfqdn())
 
 def send_msg(client, server, raw_text, name):
     dct = {

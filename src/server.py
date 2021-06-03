@@ -22,8 +22,12 @@ class Server:
     def send(self, data, ip_addr):
         self.soc.sendto(data.encode('utf-8'), ip_addr)
 
+    def get_recieved(self):
+        if self.hard_disk:
+            return self.hard_disk.pop(0)
+
     @threaded
-    def live_recieve(self):
+    def live_reciever(self):
         while self.is_alive:
             try:
                 self.soc.settimeout(1)
@@ -33,6 +37,6 @@ class Server:
                 continue
             except OSError:
                 break
+            
             self.hard_disk.append(data.decode('utf-8'))
             sleep(0.001)
-        #print('Killed Server')
