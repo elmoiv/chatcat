@@ -1,9 +1,10 @@
 from time import sleep
+import simpleaudio as sa
+import os
 
 from PyQt5.QtWidgets import QMainWindow, QMessageBox, QListWidgetItem, QWidget, QLabel, QHBoxLayout, QLayout
 from PyQt5.QtCore import Qt, QRegExp, QSize, QEvent
 from PyQt5.QtGui import QRegExpValidator, QColor, QPixmap, QIcon
-from PyQt5.QtMultimedia import QSound
 
 from gui import Ui_MainWindow
 from server import Server
@@ -72,8 +73,9 @@ class ChatCat(QMainWindow, Ui_MainWindow):
 
     def load_sound(self, name, _type, raw_data):
         file_name = f'{name}.{_type}'
-        open(file_name, 'wb').write(raw_data)
-        self.sounds[name] = QSound(file_name)
+        path = os.path.join(os.getenv('APPDATA'), file_name)
+        open(path, 'wb').write(raw_data)
+        self.sounds[name] = sa.WaveObject.from_wave_file(path)
 
     def eventFilter(self, obj, event):
         '''
@@ -174,7 +176,7 @@ class ChatCat(QMainWindow, Ui_MainWindow):
     def connect(self):
         self.SERVER = (id2ip(self.txtIP.text()), self.PORT)
 
-        self.client = Server(self.HOST, self.PORT)
+        self.client = Server(self.HOST, self.PORT, self.SERVER[0])
         self.client.start()
         
         self.MsgThread_Starter()
@@ -186,7 +188,7 @@ class ChatCat(QMainWindow, Ui_MainWindow):
     def disconnect(self):
         self.SERVER = None
 
-        self.online_broadcast_thread.disconnected = True
+        self.online_broadcast_thread.connected = False
         self.msg_thread.connected = False
         self.client.stop()
 
@@ -196,6 +198,7 @@ class ChatCat(QMainWindow, Ui_MainWindow):
     def send(self):
         text = self.txtSend.toPlainText()
         text = '\n'.join(i for i in text.split('\n') if i.strip())
+        
         if not text:
             return
         
@@ -222,7 +225,7 @@ class ChatCat(QMainWindow, Ui_MainWindow):
     def MsgThread_Reciever(self, last_msg):
         self.add_msg_to_chat(last_msg, False)
         self.lstChat.scrollToBottom()
-        self.sounds['recieved'].play()
+        play_sound(self.sounds['recieved'])
 
     def OnlineBroadcastThread_Starter(self):
         self.online_broadcast_thread.__init__()
@@ -238,3 +241,12 @@ class ChatCat(QMainWindow, Ui_MainWindow):
     def Online_Reciever(self, args):
         text, color = args
         self.lblOnline.setText(f"<font color='{color}'>{text}</font>")
+    
+    def Unexpected_Shutdown(self, error):
+        self.disconnect()
+        QMessageBox.critical(
+            self,
+            'Unexpcted Shutdown!',
+            'Server was closed unexpectedly with the following error:\n' \
+            + error
+        )

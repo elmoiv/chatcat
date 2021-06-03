@@ -6,6 +6,7 @@ class MsgThread(QThread):
     latest_msg = pyqtSignal(dict)
     typing_status = pyqtSignal(list)
     online_status = pyqtSignal(tuple)
+    server_broken = pyqtSignal(str)
 
     def __init__(self):
         QThread.__init__(self)
@@ -20,6 +21,10 @@ class MsgThread(QThread):
 
         while self.connected:
             sleep(0.001)
+
+            # If Server disconnected unexpectedly (Emit error signal)
+            if not self.client.is_alive:
+                self.server_broken.emit(self.client.error)
 
             msg = self.client.get_recieved()
             if msg == None:

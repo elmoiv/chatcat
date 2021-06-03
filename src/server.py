@@ -1,14 +1,16 @@
-from socket import socket, AF_INET, SOCK_DGRAM, timeout
+from socket import socket, AF_INET, SOCK_DGRAM
 from utils import threaded
 from time import sleep
 
 class Server:
-    def __init__(self, host, port):
+    def __init__(self, host, port, allowed_addr):
         self.host = host
         self.port = port
+        self.allowed_addr = allowed_addr
         self.soc = None
         self.is_alive = False
         self.hard_disk = []
+        self.error = None
     
     def start(self):
         self.is_alive = True
@@ -30,13 +32,13 @@ class Server:
     def live_reciever(self):
         while self.is_alive:
             try:
-                self.soc.settimeout(1)
                 data, ip = self.soc.recvfrom(1024)
-                self.soc.settimeout(None)
-            except timeout:
-                continue
-            except OSError:
+            except Exception as e:
+                self.error = str(e)
                 break
             
-            self.hard_disk.append(data.decode('utf-8'))
+            # Only accept certain ips
+            if ip[0] == self.allowed_addr:
+                self.hard_disk.append(data.decode('utf-8'))
+
             sleep(0.001)

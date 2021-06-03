@@ -11,6 +11,10 @@ def threaded(fn):
         return t
     return run
 
+@threaded
+def play_sound(sa_sound_object):
+    sa_sound_object.play()
+
 def get_my_ip():
     return gethostbyname(getfqdn())
 
